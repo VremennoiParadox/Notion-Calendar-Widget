@@ -58,31 +58,12 @@ enum ColorOption: String, AppEnum {
     }
 }
 
+// Widget settings can't hold a color picker, so the color itself is picked in the app (Store.widgetColor).
 enum WidgetColorOption: String, AppEnum {
-    case system, dark, red, orange, yellow, green, teal, blue, purple, pink
+    case system, custom
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Widget color"
     static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .system: "System", .dark: "Dark", .red: "Red", .orange: "Orange", .yellow: "Yellow",
-        .green: "Green", .teal: "Teal", .blue: "Blue", .purple: "Purple", .pink: "Pink"]
-
-    /// Top and bottom of the background gradient; nil = the system's own background.
-    var gradient: (top: NSColor, bottom: NSColor)? {
-        let base: NSColor
-        switch self {
-        case .system: return nil
-        case .dark: return (NSColor(white: 0.18, alpha: 1), NSColor(white: 0.08, alpha: 1))
-        case .red: base = .systemRed
-        case .orange: base = .systemOrange
-        case .yellow: base = .systemYellow
-        case .green: base = .systemGreen
-        case .teal: base = .systemTeal
-        case .blue: base = .systemBlue
-        case .purple: base = .systemPurple
-        case .pink: base = .systemPink
-        }
-        // Darkened so white text stays readable (Clear style always draws text white).
-        return (base.blended(withFraction: 0.15, of: .black) ?? base, base.blended(withFraction: 0.45, of: .black) ?? base)
-    }
+        .system: "System", .custom: "Custom (pick it in the app)"]
 }
 
 enum MarkerOption: String, AppEnum {
@@ -240,10 +221,18 @@ struct AgendaView: View {
         .padding(margins)
         // Drawn as content, not containerBackground: Clear style swaps the container background for glass.
         .background {
-            if let g = c.widgetColor.gradient { swatch(g.top, g.bottom) }
+            if let bg = customColor { swatch(bg) }
         }
-        .environment(\.colorScheme, c.widgetColor == .system ? systemScheme : .dark)
+        .environment(\.colorScheme, scheme)
         .containerBackground(for: .widget) { Rectangle().fill(.background) }
+    }
+
+    private var customColor: NSColor? { c.widgetColor == .custom ? Store.widgetColor : nil }
+
+    /// Dark text on light colors, light text on dark ones (Clear style draws text white regardless).
+    private var scheme: ColorScheme {
+        guard let bg = customColor, bg.alphaComponent > 0.5 else { return systemScheme }
+        return 0.299 * bg.redComponent + 0.587 * bg.greenComponent + 0.114 * bg.blueComponent > 0.6 ? .light : .dark
     }
 
     private var hasHeading: Bool { !(c.heading ?? "").isEmpty }
@@ -276,15 +265,13 @@ struct AgendaView: View {
         .background(c.marker == .chip ? swatch(NSColor(color)).opacity(0.25).clipShape(RoundedRectangle(cornerRadius: 4)) : nil)
     }
 
-    /// A solid (or top-to-bottom gradient) color picture. In Clear/Tinted icon & widget style macOS repaints
-    /// shapes and text in one tint, but a picture marked full-color keeps its real color.
-    @ViewBuilder private func swatch(_ top: NSColor, _ bottom: NSColor? = nil) -> some View {
-        let ctx = CGContext(data: nil, width: 1, height: 2, bitsPerComponent: 8, bytesPerRow: 4,
+    /// A solid-color picture. In Clear/Tinted icon & widget style macOS repaints shapes and text in one tint,
+    /// but a picture marked full-color keeps its real color.
+    @ViewBuilder private func swatch(_ color: NSColor) -> some View {
+        let ctx = CGContext(data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
                             space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-        let _ = ctx.setFillColor((bottom ?? top).cgColor)
-        let _ = ctx.fill(CGRect(x: 0, y: 0, width: 1, height: 1)) // Core Graphics y=0 is the bottom row
-        let _ = ctx.setFillColor(top.cgColor)
-        let _ = ctx.fill(CGRect(x: 0, y: 1, width: 1, height: 1))
+        let _ = ctx.setFillColor(color.cgColor)
+        let _ = ctx.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
         let image = Image(decorative: ctx.makeImage()!, scale: 1).resizable()
         if #available(macOS 15, *) {
             image.widgetAccentedRenderingMode(.fullColor)

@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var token = Store.notionToken
     @State private var notionStatus = ""
     @State private var calendarAllowed: Bool?
+    @State private var widgetColor = Color(nsColor: Store.widgetColor)
 
     var body: some View {
         Form {
@@ -48,6 +49,15 @@ struct SettingsView: View {
                     }
                 case nil: Text("Checking…")
                 }
+            }
+            Section("Widget color") {
+                ColorPicker("Color for widgets set to “Custom”", selection: $widgetColor, supportsOpacity: true)
+                    .onChange(of: widgetColor) { _, new in
+                        Store.widgetColor = NSColor(new)
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
+                Text("Right-click a widget → Edit “Notion Agenda” → Widget color → Custom. Lower the opacity for a tinted-glass look.")
+                    .foregroundStyle(.secondary)
             }
             Section("Customize") {
                 Text("Right-click the widget → Edit “Notion Agenda” to change colors, background, grouping, text size, which lists show, and more.")

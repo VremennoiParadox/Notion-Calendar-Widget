@@ -17,7 +17,7 @@ Right-click the widget → **Edit "Notion Agenda"**. Each widget has its own set
 
 - **Title**, **Show** (Calendar, Notion or both), **Hide lists**, **Days ahead**
 - **Group by** day, list, or nothing; **Show list name**
-- **Widget color** (system, dark, or a color), **Marker** (bar, dot, chip, none), **Marker color** (list colors, a single color, or monochrome), **Text size**
+- **Widget color** (System, or Custom: the color you pick in the app's color picker, opacity included), **Marker** (bar, dot, chip, none), **Marker color** (list colors, a single color, or monochrome), **Text size**
 
 Widget and marker colors work in every **Appearance → Icon & widget style**. In Clear or Tinted style macOS draws all text in one tint.
 
