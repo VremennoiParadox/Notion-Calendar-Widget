@@ -18,7 +18,10 @@ struct SettingsView: View {
     @State private var calendarAllowed: Bool?
     @State private var backgroundDraft = Store.widgetColor
     @State private var elementDraft = Store.elementColor
-    @State private var colorStatus = ""
+    @State private var markerDraft = Store.marker
+    @State private var itemColorsDraft = Store.itemColors
+    @State private var textSizeDraft = Store.textSize
+    @State private var appearanceStatus = ""
 
     var body: some View {
         Form {
@@ -52,23 +55,39 @@ struct SettingsView: View {
                 case nil: Text("Checking…")
                 }
             }
-            Section("Colors") {
+            Section("Appearance") {
                 colorRow("Background", $backgroundDraft, none: "System", opacity: true)
                 colorRow("Elements", $elementDraft, none: "Red", opacity: false)
+                Picker("Marker", selection: $markerDraft) {
+                    ForEach(MarkerOption.allCases, id: \.self) { Text($0.title) }
+                }
+                Picker("Item colors", selection: $itemColorsDraft) {
+                    ForEach(ColorOption.allCases, id: \.self) { Text($0.title) }
+                }
+                Picker("Text size", selection: $textSizeDraft) {
+                    ForEach(SizeOption.allCases, id: \.self) { Text($0.title) }
+                }
+                .pickerStyle(.segmented)
                 HStack {
-                    Button("Save Colors") {
+                    Button("Save Appearance") {
                         Store.widgetColor = backgroundDraft
                         Store.elementColor = elementDraft
+                        Store.marker = markerDraft
+                        Store.itemColors = itemColorsDraft
+                        Store.textSize = textSizeDraft
                         WidgetCenter.shared.reloadAllTimelines()
-                        colorStatus = "Saved. Widgets updated."
+                        appearanceStatus = "Saved. Widgets updated."
                     }
-                    Text(colorStatus).foregroundStyle(.secondary)
+                    Text(appearanceStatus).foregroundStyle(.secondary)
                 }
-                Text("Pick colors, then Save Colors; they apply to every widget. Elements are today’s highlight, headers, the page band and the time line; set Item colors to “Element color” to match items too. Lower the background opacity for a tinted-glass look. To keep one widget plain, right-click it → Edit “Notion Agenda” → Background color: System or Element color: Red.")
+                Text("Applies to every widget. Elements are today’s highlight, headers, the page band and the time line; set Item colors to “Element color” to match items too. Lower the background opacity for a tinted-glass look.")
                     .foregroundStyle(.secondary)
             }
+            .onChange(of: markerDraft) { appearanceStatus = "Not saved yet." }
+            .onChange(of: itemColorsDraft) { appearanceStatus = "Not saved yet." }
+            .onChange(of: textSizeDraft) { appearanceStatus = "Not saved yet." }
             Section("Customize") {
-                Text("Right-click the widget → Edit “Notion Agenda” to change colors, background, grouping, text size, which lists show, and more.")
+                Text("Right-click a widget → Edit “Notion Agenda” to choose its style, what it shows, how many days, and how items are grouped.")
                     .foregroundStyle(.secondary)
                 HStack {
                     Text("Widget and marker colors work in every Icon & widget style. In Clear or Tinted, macOS draws all text in one tint.")
@@ -80,8 +99,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 460, height: 640) // scrolls if the screen is smaller than the settings
         .task {
             calendarAllowed = (try? await EKEventStore().requestFullAccessToEvents()) ?? false
             await save()
@@ -92,7 +110,7 @@ struct SettingsView: View {
     func colorRow(_ title: String, _ color: Binding<NSColor?>, none: String, opacity: Bool) -> some View {
         let edit = { (new: NSColor?) in
             color.wrappedValue = new
-            colorStatus = "Not saved yet."
+            appearanceStatus = "Not saved yet."
         }
         return HStack {
             ColorPicker(color.wrappedValue == nil ? "\(title) (\(none))" : title,

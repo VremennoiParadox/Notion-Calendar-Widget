@@ -16,11 +16,29 @@ struct AgendaConfig: WidgetConfigurationIntent {
     @Parameter(title: "Days ahead", default: 7, inclusiveRange: (1, 30)) var days: Int
     @Parameter(title: "Group by", default: .day) var groupBy: GroupOption
     @Parameter(title: "Show list name", default: false) var showSource: Bool
-    @Parameter(title: "Background color", default: .app) var widgetColor: WidgetColorOption
-    @Parameter(title: "Element color", default: .app) var elementColor: ElementColorOption
-    @Parameter(title: "Marker", default: .bar) var marker: MarkerOption
-    @Parameter(title: "Item colors", default: .calendar) var colors: ColorOption
-    @Parameter(title: "Text size", default: .medium) var textSize: SizeOption
+    // Colors, marker and text size are set in the app (Store), which keeps this menu short enough to fit on screen.
+
+    /// Apple/Notion looks have no title or item list, so hide those rows for them.
+    static var parameterSummary: some ParameterSummary {
+        When(\.$style, .oneOf, [.apple, .notion]) {
+            Summary {
+                \.$style
+                \.$show
+                \.$hidden
+                \.$days
+            }
+        } otherwise: {
+            Summary {
+                \.$heading
+                \.$style
+                \.$show
+                \.$hidden
+                \.$days
+                \.$groupBy
+                \.$showSource
+            }
+        }
+    }
 }
 
 enum StyleOption: String, AppEnum {
@@ -46,63 +64,6 @@ enum GroupOption: String, AppEnum {
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Group by"
     static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
         .day: "Day", .list: "List", .flat: "Nothing (one list)"]
-}
-
-enum ColorOption: String, AppEnum {
-    case calendar, element, blue, purple, pink, red, orange, yellow, green, teal, mono
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Item colors"
-    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .calendar: "List colors", .element: "Element color", .blue: "Blue", .purple: "Purple", .pink: "Pink", .red: "Red",
-        .orange: "Orange", .yellow: "Yellow", .green: "Green", .teal: "Teal", .mono: "Monochrome"]
-
-    var fixed: Color? {
-        switch self {
-        case .calendar, .element: nil
-        case .blue: .blue
-        case .purple: .purple
-        case .pink: .pink
-        case .red: .red
-        case .orange: .orange
-        case .yellow: .yellow
-        case .green: .green
-        case .teal: .teal
-        case .mono: .gray
-        }
-    }
-}
-
-// Widget settings can't hold a color picker, so colors are picked in the app and apply to every widget
-// unless a widget opts out here. (Case names changed from system/custom and standard/custom, so widgets set
-// up before fall back to "App color".)
-enum WidgetColorOption: String, AppEnum {
-    case app, system
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Background color"
-    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .app: "App color", .system: "System"]
-}
-
-/// Today's highlight, headers, the page band and the time line.
-enum ElementColorOption: String, AppEnum {
-    case app, red
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Element color"
-    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .app: "App color", .red: "Red"]
-}
-
-enum MarkerOption: String, AppEnum {
-    case bar, dot, chip, hidden
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Marker"
-    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .bar: "Bar", .dot: "Dot", .chip: "Chip", .hidden: "None"]
-}
-
-enum SizeOption: String, AppEnum {
-    case small, medium, large
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Text size"
-    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .small: "Small", .medium: "Medium", .large: "Large"]
-
-    var points: CGFloat { [.small: 9.5, .medium: 11, .large: 13][self]! }
 }
 
 /// A calendar or Notion database, offered in "Hide lists".
@@ -210,7 +171,7 @@ struct AgendaView: View {
     @Environment(\.widgetRenderingMode) var renderingMode
 
     var c: AgendaConfig { entry.config }
-    var size: CGFloat { c.textSize.points }
+    var size: CGFloat { Store.textSize.points }
     var lineHeight: CGFloat { size * 1.6 }
     var today: Date { Calendar.current.startOfDay(for: entry.date) }
     let palette: [Color] = [.blue, .purple, .pink, .orange, .green, .teal, .red, .yellow]
@@ -400,8 +361,10 @@ struct AgendaView: View {
         }
     }
 
-    var customColor: NSColor? { c.widgetColor == .app ? Store.widgetColor : nil }
-    var elementColor: NSColor? { c.elementColor == .app ? Store.elementColor : nil }
+    var customColor: NSColor? { Store.widgetColor }
+    var elementColor: NSColor? { Store.elementColor }
+    var marker: MarkerOption { Store.marker }
+    var itemColors: ColorOption { Store.itemColors }
 
     /// Dark text on light backgrounds and paper, light text on dark ones (Clear style draws text white regardless).
     var scheme: ColorScheme {
@@ -424,7 +387,7 @@ struct AgendaView: View {
     func row(_ item: Item) -> some View {
         let color = color(for: item)
         return HStack(spacing: 6) {
-            switch c.marker {
+            switch marker {
             case .bar: swatch(NSColor(color)).frame(width: 3, height: size + 2).clipShape(RoundedRectangle(cornerRadius: 1.5))
             case .dot: swatch(NSColor(color)).frame(width: size * 0.6, height: size * 0.6).clipShape(Circle())
             case .chip, .hidden: EmptyView()
@@ -436,9 +399,9 @@ struct AgendaView: View {
             Spacer(minLength: 4)
             Text(timeLabel(item)).font(.system(size: size - 1)).foregroundStyle(.secondary).lineLimit(1)
         }
-        .padding(.horizontal, c.marker == .chip ? 5 : 0)
+        .padding(.horizontal, marker == .chip ? 5 : 0)
         .frame(maxHeight: lineHeight - 2)
-        .background(c.marker == .chip ? swatch(NSColor(color)).opacity(0.25).clipShape(RoundedRectangle(cornerRadius: 4)) : nil)
+        .background(marker == .chip ? swatch(NSColor(color)).opacity(0.25).clipShape(RoundedRectangle(cornerRadius: 4)) : nil)
     }
 
     /// A solid-color picture. In Clear/Tinted icon & widget style macOS repaints shapes and text in one tint,
@@ -464,8 +427,8 @@ struct AgendaView: View {
     }
 
     func color(for item: Item) -> Color {
-        if c.colors == .element { return Color(nsColor: theme) }
-        if let fixed = c.colors.fixed { return fixed }
+        if itemColors == .element { return Color(nsColor: theme) }
+        if let fixed = itemColors.fixed { return fixed }
         if let cg = item.calendarColor { return Color(cgColor: cg) }
         // Notion databases have no color, so give each one a stable color of its own.
         return palette[item.sourceID.unicodeScalars.reduce(0) { $0 + Int($1.value) } % palette.count]
@@ -477,7 +440,7 @@ struct NotionAgendaWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: "NotionAgenda", intent: AgendaConfig.self, provider: Provider()) { AgendaView(entry: $0) }
             .configurationDisplayName("Notion Agenda")
-            .description("Your calendar and Notion dates. Right-click → Edit to customize.")
+            .description("Your calendar and Notion dates.")
             .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
             .contentMarginsDisabled() // so the widget color reaches the edges; AgendaView pads itself
     }
