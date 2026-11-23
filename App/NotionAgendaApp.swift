@@ -53,7 +53,7 @@ struct SettingsView: View {
                 Text("Right-click the widget → Edit “Notion Agenda” to change colors, background, grouping, text size, which lists show, and more.")
                     .foregroundStyle(.secondary)
                 HStack {
-                    Text("Text colors and backgrounds need Appearance → Icon & widget style set to Default. In Clear or Tinted, macOS tints the whole widget; only the markers keep their colors.")
+                    Text("Widget and marker colors work in every Icon & widget style. In Clear or Tinted, macOS draws all text in one tint.")
                         .foregroundStyle(.secondary)
                     Button("Open Appearance") {
                         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Appearance-Settings.extension")!)

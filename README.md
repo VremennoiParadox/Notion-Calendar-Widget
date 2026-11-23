@@ -17,9 +17,9 @@ Right-click the widget → **Edit "Notion Agenda"**. Each widget has its own set
 
 - **Title**, **Show** (Calendar, Notion or both), **Hide lists**, **Days ahead**
 - **Group by** day, list, or nothing; **Show list name**
-- **Colors** (list colors, a single color, or monochrome), **Background** (system, tinted, dark, light), **Marker** (bar, dot, chip, none), **Text size**
+- **Widget color** (system, dark, or a color), **Marker** (bar, dot, chip, none), **Marker color** (list colors, a single color, or monochrome), **Text size**
 
-Text colors and backgrounds need **System Settings → Appearance → Icon & widget style** set to Default. In Clear or Tinted style macOS tints the whole widget; the markers (bar, dot, chip) still keep their colors.
+Widget and marker colors work in every **Appearance → Icon & widget style**. In Clear or Tinted style macOS draws all text in one tint.
 
 The widget refreshes about every 15 minutes. Clicking it opens the app, which refreshes it immediately.
 

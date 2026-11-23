@@ -15,9 +15,9 @@ struct AgendaConfig: WidgetConfigurationIntent {
     @Parameter(title: "Days ahead", default: 7, inclusiveRange: (1, 30)) var days: Int
     @Parameter(title: "Group by", default: .day) var groupBy: GroupOption
     @Parameter(title: "Show list name", default: false) var showSource: Bool
-    @Parameter(title: "Colors", default: .calendar) var colors: ColorOption
-    @Parameter(title: "Background", default: .system) var background: BackgroundOption
+    @Parameter(title: "Widget color", default: .system) var widgetColor: WidgetColorOption
     @Parameter(title: "Marker", default: .bar) var marker: MarkerOption
+    @Parameter(title: "Marker color", default: .calendar) var colors: ColorOption
     @Parameter(title: "Text size", default: .medium) var textSize: SizeOption
 }
 
@@ -37,7 +37,7 @@ enum GroupOption: String, AppEnum {
 
 enum ColorOption: String, AppEnum {
     case calendar, blue, purple, pink, red, orange, yellow, green, teal, mono
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Colors"
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Marker color"
     static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
         .calendar: "List colors", .blue: "Blue", .purple: "Purple", .pink: "Pink", .red: "Red",
         .orange: "Orange", .yellow: "Yellow", .green: "Green", .teal: "Teal", .mono: "Monochrome"]
@@ -58,11 +58,31 @@ enum ColorOption: String, AppEnum {
     }
 }
 
-enum BackgroundOption: String, AppEnum {
-    case system, tinted, dark, light
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Background"
+enum WidgetColorOption: String, AppEnum {
+    case system, dark, red, orange, yellow, green, teal, blue, purple, pink
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Widget color"
     static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .system: "System", .tinted: "Tinted", .dark: "Dark", .light: "Light"]
+        .system: "System", .dark: "Dark", .red: "Red", .orange: "Orange", .yellow: "Yellow",
+        .green: "Green", .teal: "Teal", .blue: "Blue", .purple: "Purple", .pink: "Pink"]
+
+    /// Top and bottom of the background gradient; nil = the system's own background.
+    var gradient: (top: NSColor, bottom: NSColor)? {
+        let base: NSColor
+        switch self {
+        case .system: return nil
+        case .dark: return (NSColor(white: 0.18, alpha: 1), NSColor(white: 0.08, alpha: 1))
+        case .red: base = .systemRed
+        case .orange: base = .systemOrange
+        case .yellow: base = .systemYellow
+        case .green: base = .systemGreen
+        case .teal: base = .systemTeal
+        case .blue: base = .systemBlue
+        case .purple: base = .systemPurple
+        case .pink: base = .systemPink
+        }
+        // Darkened so white text stays readable (Clear style always draws text white).
+        return (base.blended(withFraction: 0.15, of: .black) ?? base, base.blended(withFraction: 0.45, of: .black) ?? base)
+    }
 }
 
 enum MarkerOption: String, AppEnum {
@@ -182,12 +202,12 @@ struct Provider: AppIntentTimelineProvider {
 struct AgendaView: View {
     let entry: Entry
     @Environment(\.colorScheme) private var systemScheme
+    @Environment(\.widgetContentMargins) private var margins
 
     private var c: AgendaConfig { entry.config }
     private var size: CGFloat { c.textSize.points }
     private var lineHeight: CGFloat { size * 1.6 }
     private var today: Date { Calendar.current.startOfDay(for: entry.date) }
-    private var accent: Color { c.colors.fixed ?? .blue }
     private let palette: [Color] = [.blue, .purple, .pink, .orange, .green, .teal, .red, .yellow]
 
     var body: some View {
@@ -217,8 +237,13 @@ struct AgendaView: View {
                 }
             }
         }
-        .environment(\.colorScheme, c.background == .dark ? .dark : c.background == .light ? .light : systemScheme)
-        .containerBackground(for: .widget) { background }
+        .padding(margins)
+        // Drawn as content, not containerBackground: Clear style swaps the container background for glass.
+        .background {
+            if let g = c.widgetColor.gradient { swatch(g.top, g.bottom) }
+        }
+        .environment(\.colorScheme, c.widgetColor == .system ? systemScheme : .dark)
+        .containerBackground(for: .widget) { Rectangle().fill(.background) }
     }
 
     private var hasHeading: Bool { !(c.heading ?? "").isEmpty }
@@ -235,8 +260,8 @@ struct AgendaView: View {
         let color = color(for: item)
         return HStack(spacing: 6) {
             switch c.marker {
-            case .bar: swatch(color).frame(width: 3, height: size + 2).clipShape(RoundedRectangle(cornerRadius: 1.5))
-            case .dot: swatch(color).frame(width: size * 0.6, height: size * 0.6).clipShape(Circle())
+            case .bar: swatch(NSColor(color)).frame(width: 3, height: size + 2).clipShape(RoundedRectangle(cornerRadius: 1.5))
+            case .dot: swatch(NSColor(color)).frame(width: size * 0.6, height: size * 0.6).clipShape(Circle())
             case .chip, .hidden: EmptyView()
             }
             Text(item.title).font(.system(size: size)).lineLimit(1).layoutPriority(1)
@@ -248,16 +273,18 @@ struct AgendaView: View {
         }
         .padding(.horizontal, c.marker == .chip ? 5 : 0)
         .frame(maxHeight: lineHeight - 2)
-        .background(c.marker == .chip ? swatch(color).opacity(0.25).clipShape(RoundedRectangle(cornerRadius: 4)) : nil)
+        .background(c.marker == .chip ? swatch(NSColor(color)).opacity(0.25).clipShape(RoundedRectangle(cornerRadius: 4)) : nil)
     }
 
-    /// A solid-color picture. In Clear/Tinted icon & widget style macOS repaints shapes and text in one tint,
-    /// but a picture marked full-color keeps its real color, so markers stay colored.
-    @ViewBuilder private func swatch(_ color: Color) -> some View {
-        let ctx = CGContext(data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+    /// A solid (or top-to-bottom gradient) color picture. In Clear/Tinted icon & widget style macOS repaints
+    /// shapes and text in one tint, but a picture marked full-color keeps its real color.
+    @ViewBuilder private func swatch(_ top: NSColor, _ bottom: NSColor? = nil) -> some View {
+        let ctx = CGContext(data: nil, width: 1, height: 2, bitsPerComponent: 8, bytesPerRow: 4,
                             space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-        let _ = ctx.setFillColor(NSColor(color).cgColor)
-        let _ = ctx.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        let _ = ctx.setFillColor((bottom ?? top).cgColor)
+        let _ = ctx.fill(CGRect(x: 0, y: 0, width: 1, height: 1)) // Core Graphics y=0 is the bottom row
+        let _ = ctx.setFillColor(top.cgColor)
+        let _ = ctx.fill(CGRect(x: 0, y: 1, width: 1, height: 1))
         let image = Image(decorative: ctx.makeImage()!, scale: 1).resizable()
         if #available(macOS 15, *) {
             image.widgetAccentedRenderingMode(.fullColor)
@@ -279,15 +306,6 @@ struct AgendaView: View {
         // Notion databases have no color, so give each one a stable color of its own.
         return palette[item.sourceID.unicodeScalars.reduce(0) { $0 + Int($1.value) } % palette.count]
     }
-
-    @ViewBuilder private var background: some View {
-        switch c.background {
-        case .system: Rectangle().fill(.background)
-        case .tinted: ZStack { Rectangle().fill(.background); accent.opacity(0.2) }
-        case .dark: Color(white: 0.11)
-        case .light: Color(white: 0.97)
-        }
-    }
 }
 
 @main
@@ -297,5 +315,6 @@ struct NotionAgendaWidget: Widget {
             .configurationDisplayName("Notion Agenda")
             .description("Your calendar and Notion dates. Right-click → Edit to customize.")
             .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
+            .contentMarginsDisabled() // so the widget color reaches the edges; AgendaView pads itself
     }
 }
