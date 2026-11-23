@@ -16,7 +16,9 @@ struct SettingsView: View {
     @State private var token = Store.notionToken
     @State private var notionStatus = ""
     @State private var calendarAllowed: Bool?
-    @State private var colorsChanged = 0 // Store isn't observable; bump this to redraw after a color change
+    @State private var backgroundDraft = Store.widgetColor
+    @State private var elementDraft = Store.elementColor
+    @State private var colorStatus = ""
 
     var body: some View {
         Form {
@@ -51,10 +53,18 @@ struct SettingsView: View {
                 }
             }
             Section("Colors") {
-                let _ = colorsChanged
-                colorRow("Background", current: Store.widgetColor, none: "System", opacity: true) { Store.widgetColor = $0 }
-                colorRow("Elements", current: Store.elementColor, none: "Red", opacity: false) { Store.elementColor = $0 }
-                Text("Applies to every widget right away. Elements are today’s highlight, headers, the page band and the time line; set Item colors to “Element color” to match items too. Lower the background opacity for a tinted-glass look. To keep one widget plain, right-click it → Edit “Notion Agenda” → Background color: System or Element color: Red.")
+                colorRow("Background", $backgroundDraft, none: "System", opacity: true)
+                colorRow("Elements", $elementDraft, none: "Red", opacity: false)
+                HStack {
+                    Button("Save Colors") {
+                        Store.widgetColor = backgroundDraft
+                        Store.elementColor = elementDraft
+                        WidgetCenter.shared.reloadAllTimelines()
+                        colorStatus = "Saved. Widgets updated."
+                    }
+                    Text(colorStatus).foregroundStyle(.secondary)
+                }
+                Text("Pick colors, then Save Colors; they apply to every widget. Elements are today’s highlight, headers, the page band and the time line; set Item colors to “Element color” to match items too. Lower the background opacity for a tinted-glass look. To keep one widget plain, right-click it → Edit “Notion Agenda” → Background color: System or Element color: Red.")
                     .foregroundStyle(.secondary)
             }
             Section("Customize") {
@@ -78,18 +88,17 @@ struct SettingsView: View {
         }
     }
 
-    /// A color picker that writes straight to the shared Store, plus Reset (back to `none`).
-    func colorRow(_ title: String, current: NSColor?, none: String, opacity: Bool, set: @escaping (NSColor?) -> Void) -> some View {
-        let apply = { (color: NSColor?) in
-            set(color)
-            colorsChanged += 1
-            WidgetCenter.shared.reloadAllTimelines()
+    /// A color picker plus Reset (back to `none`). Changes wait for Save Colors.
+    func colorRow(_ title: String, _ color: Binding<NSColor?>, none: String, opacity: Bool) -> some View {
+        let edit = { (new: NSColor?) in
+            color.wrappedValue = new
+            colorStatus = "Not saved yet."
         }
         return HStack {
-            ColorPicker(current == nil ? "\(title) (\(none))" : title,
-                        selection: Binding(get: { Color(nsColor: current ?? .gray) }, set: { apply(NSColor($0)) }),
+            ColorPicker(color.wrappedValue == nil ? "\(title) (\(none))" : title,
+                        selection: Binding(get: { Color(nsColor: color.wrappedValue ?? .gray) }, set: { edit(NSColor($0)) }),
                         supportsOpacity: opacity)
-            Button("Reset") { apply(nil) }.disabled(current == nil)
+            Button("Reset") { edit(nil) }.disabled(color.wrappedValue == nil)
         }
     }
 
