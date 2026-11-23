@@ -16,8 +16,7 @@ struct SettingsView: View {
     @State private var token = Store.notionToken
     @State private var notionStatus = ""
     @State private var calendarAllowed: Bool?
-    @State private var widgetColor = Color(nsColor: Store.widgetColor)
-    @State private var elementColor = Color(nsColor: Store.elementColor)
+    @State private var colorsChanged = 0 // Store isn't observable; bump this to redraw after a color change
 
     var body: some View {
         Form {
@@ -52,17 +51,10 @@ struct SettingsView: View {
                 }
             }
             Section("Colors") {
-                ColorPicker("Background", selection: $widgetColor, supportsOpacity: true)
-                    .onChange(of: widgetColor) { _, new in
-                        Store.widgetColor = NSColor(new)
-                        WidgetCenter.shared.reloadAllTimelines()
-                    }
-                ColorPicker("Elements", selection: $elementColor, supportsOpacity: false)
-                    .onChange(of: elementColor) { _, new in
-                        Store.elementColor = NSColor(new)
-                        WidgetCenter.shared.reloadAllTimelines()
-                    }
-                Text("Used by widgets whose Background color or Element color is set to Custom (right-click a widget → Edit “Notion Agenda”). Elements are today’s highlight, headers, the page band and the time line; set Item colors to “Element color” to match items too. Lower the background opacity for a tinted-glass look.")
+                let _ = colorsChanged
+                colorRow("Background", current: Store.widgetColor, none: "System", opacity: true) { Store.widgetColor = $0 }
+                colorRow("Elements", current: Store.elementColor, none: "Red", opacity: false) { Store.elementColor = $0 }
+                Text("Applies to every widget right away. Elements are today’s highlight, headers, the page band and the time line; set Item colors to “Element color” to match items too. Lower the background opacity for a tinted-glass look. To keep one widget plain, right-click it → Edit “Notion Agenda” → Background color: System or Element color: Red.")
                     .foregroundStyle(.secondary)
             }
             Section("Customize") {
@@ -83,6 +75,21 @@ struct SettingsView: View {
         .task {
             calendarAllowed = (try? await EKEventStore().requestFullAccessToEvents()) ?? false
             await save()
+        }
+    }
+
+    /// A color picker that writes straight to the shared Store, plus Reset (back to `none`).
+    func colorRow(_ title: String, current: NSColor?, none: String, opacity: Bool, set: @escaping (NSColor?) -> Void) -> some View {
+        let apply = { (color: NSColor?) in
+            set(color)
+            colorsChanged += 1
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+        return HStack {
+            ColorPicker(current == nil ? "\(title) (\(none))" : title,
+                        selection: Binding(get: { Color(nsColor: current ?? .gray) }, set: { apply(NSColor($0)) }),
+                        supportsOpacity: opacity)
+            Button("Reset") { apply(nil) }.disabled(current == nil)
         }
     }
 

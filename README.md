@@ -18,7 +18,7 @@ Right-click the widget → **Edit "Notion Agenda"**. Each widget has its own set
 - **Style**: List, Calendar page (a tear-off desk calendar page), Month (a month grid with today circled and dots on busy days), Apple Calendar look (month view with event pills), or Notion Calendar look (day columns on an hour grid with a current-time line). Every style uses the Element color for today's highlight, headers and the time line. Month grids only show items within **Days ahead**, so set it to 30 to fill the month.
 - **Title**, **Show** (Calendar, Notion or both), **Hide lists**, **Days ahead**
 - **Group by** day, list, or nothing; **Show list name**
-- **Background color** (System, or Custom), **Element color** (Red, or Custom), **Marker** (bar, dot, chip, none), **Item colors** (list colors, the element color, a single color, or monochrome), **Text size**. The two Custom colors are picked in the app's color pickers (background opacity included).
+- **Background color** (App color or System), **Element color** (App color or Red), **Marker** (bar, dot, chip, none), **Item colors** (list colors, the element color, a single color, or monochrome), **Text size**. Pick the background and element colors in the app (background opacity included); they apply to every widget left on "App color". Reset in the app goes back to System and Red.
 
 Widget and marker colors work in every **Appearance → Icon & widget style**. In Clear or Tinted style macOS draws all text in one tint.
 

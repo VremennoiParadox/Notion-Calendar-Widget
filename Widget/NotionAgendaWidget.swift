@@ -16,8 +16,8 @@ struct AgendaConfig: WidgetConfigurationIntent {
     @Parameter(title: "Days ahead", default: 7, inclusiveRange: (1, 30)) var days: Int
     @Parameter(title: "Group by", default: .day) var groupBy: GroupOption
     @Parameter(title: "Show list name", default: false) var showSource: Bool
-    @Parameter(title: "Background color", default: .system) var widgetColor: WidgetColorOption
-    @Parameter(title: "Element color", default: .standard) var elementColor: ElementColorOption
+    @Parameter(title: "Background color", default: .app) var widgetColor: WidgetColorOption
+    @Parameter(title: "Element color", default: .app) var elementColor: ElementColorOption
     @Parameter(title: "Marker", default: .bar) var marker: MarkerOption
     @Parameter(title: "Item colors", default: .calendar) var colors: ColorOption
     @Parameter(title: "Text size", default: .medium) var textSize: SizeOption
@@ -71,20 +71,22 @@ enum ColorOption: String, AppEnum {
     }
 }
 
-// Widget settings can't hold a color picker, so the color itself is picked in the app (Store.widgetColor).
+// Widget settings can't hold a color picker, so colors are picked in the app and apply to every widget
+// unless a widget opts out here. (Case names changed from system/custom and standard/custom, so widgets set
+// up before fall back to "App color".)
 enum WidgetColorOption: String, AppEnum {
-    case system, custom
+    case app, system
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Background color"
     static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .system: "System", .custom: "Custom (pick it in the app)"]
+        .app: "App color", .system: "System"]
 }
 
-/// Today's highlight, headers, the page band and the time line. The custom color is picked in the app (Store.elementColor).
+/// Today's highlight, headers, the page band and the time line.
 enum ElementColorOption: String, AppEnum {
-    case standard, custom
+    case app, red
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Element color"
     static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .standard: "Red", .custom: "Custom (pick it in the app)"]
+        .app: "App color", .red: "Red"]
 }
 
 enum MarkerOption: String, AppEnum {
@@ -241,7 +243,7 @@ struct AgendaView: View {
 
     /// The element color: today's highlight, headers, the page band, the time line.
     var theme: NSColor {
-        c.elementColor == .custom ? Store.elementColor.withAlphaComponent(1) : .systemRed
+        elementColor?.withAlphaComponent(1) ?? .systemRed
     }
 
     // MARK: Calendar page style
@@ -376,7 +378,7 @@ struct AgendaView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if hasHeading {
                     Text(c.heading ?? "").font(.system(size: size + 2, weight: .bold))
-                        .foregroundStyle(c.elementColor == .custom ? Color(nsColor: theme) : .primary).frame(height: lineHeight)
+                        .foregroundStyle(elementColor == nil ? .primary : Color(nsColor: theme)).frame(height: lineHeight)
                 }
                 if entry.items.isEmpty && entry.note == nil {
                     Text("Nothing in the next \(c.days) days").font(.system(size: size)).foregroundStyle(.secondary)
@@ -398,7 +400,8 @@ struct AgendaView: View {
         }
     }
 
-    var customColor: NSColor? { c.widgetColor == .custom ? Store.widgetColor : nil }
+    var customColor: NSColor? { c.widgetColor == .app ? Store.widgetColor : nil }
+    var elementColor: NSColor? { c.elementColor == .app ? Store.elementColor : nil }
 
     /// Dark text on light backgrounds and paper, light text on dark ones (Clear style draws text white regardless).
     var scheme: ColorScheme {
