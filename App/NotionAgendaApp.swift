@@ -52,6 +52,13 @@ struct SettingsView: View {
             Section("Customize") {
                 Text("Right-click the widget → Edit “Notion Agenda” to change colors, background, grouping, text size, which lists show, and more.")
                     .foregroundStyle(.secondary)
+                HStack {
+                    Text("Colors and backgrounds only show when Widget style is Full-color. On Automatic, macOS makes widgets monochrome while a window is in front.")
+                        .foregroundStyle(.secondary)
+                    Button("Open Widget Settings") {
+                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension")!)
+                    }
+                }
             }
         }
         .formStyle(.grouped)
