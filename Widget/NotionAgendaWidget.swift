@@ -53,7 +53,7 @@ enum ColorOption: String, AppEnum {
         case .yellow: .yellow
         case .green: .green
         case .teal: .teal
-        case .mono: .secondary
+        case .mono: .gray
         }
     }
 }
@@ -235,8 +235,8 @@ struct AgendaView: View {
         let color = color(for: item)
         return HStack(spacing: 6) {
             switch c.marker {
-            case .bar: RoundedRectangle(cornerRadius: 1.5).fill(color).frame(width: 3, height: size + 2)
-            case .dot: Circle().fill(color).frame(width: size * 0.6, height: size * 0.6)
+            case .bar: swatch(color).frame(width: 3, height: size + 2).clipShape(RoundedRectangle(cornerRadius: 1.5))
+            case .dot: swatch(color).frame(width: size * 0.6, height: size * 0.6).clipShape(Circle())
             case .chip, .hidden: EmptyView()
             }
             Text(item.title).font(.system(size: size)).lineLimit(1).layoutPriority(1)
@@ -248,7 +248,22 @@ struct AgendaView: View {
         }
         .padding(.horizontal, c.marker == .chip ? 5 : 0)
         .frame(maxHeight: lineHeight - 2)
-        .background(c.marker == .chip ? RoundedRectangle(cornerRadius: 4).fill(color.opacity(0.22)) : nil)
+        .background(c.marker == .chip ? swatch(color).opacity(0.25).clipShape(RoundedRectangle(cornerRadius: 4)) : nil)
+    }
+
+    /// A solid-color picture. In Clear/Tinted icon & widget style macOS repaints shapes and text in one tint,
+    /// but a picture marked full-color keeps its real color, so markers stay colored.
+    @ViewBuilder private func swatch(_ color: Color) -> some View {
+        let ctx = CGContext(data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        let _ = ctx.setFillColor(NSColor(color).cgColor)
+        let _ = ctx.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        let image = Image(decorative: ctx.makeImage()!, scale: 1).resizable()
+        if #available(macOS 15, *) {
+            image.widgetAccentedRenderingMode(.fullColor)
+        } else {
+            image
+        }
     }
 
     private func timeLabel(_ item: Item) -> String {
