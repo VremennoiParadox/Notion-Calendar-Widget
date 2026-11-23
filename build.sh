@@ -3,12 +3,9 @@
 set -e
 cd "$(dirname "$0")"
 
-# Your Notion secret lives in Widget/Config.swift, which git ignores. Create it on first run.
-[ -f Widget/Config.swift ] || printf '%s\n' '// Paste your Notion integration secret between the quotes, then run ./build.sh again.' 'let notionToken = ""' > Widget/Config.swift
-
 mkdir -p build
-swiftc Widget/Notion.swift Check/main.swift -o build/notion-check
-build/notion-check
+swiftc Shared/*.swift Check/main.swift -o build/check
+build/check
 
 xcodebuild -project NotionAgenda.xcodeproj -target NotionAgenda -configuration Release -quiet
 
