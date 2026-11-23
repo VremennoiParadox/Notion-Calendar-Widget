@@ -38,3 +38,17 @@ func dayLabel(_ date: Date, today: Date, short: Bool = false) -> String {
     if cal.isDate(day, inSameDayAs: cal.date(byAdding: .day, value: 1, to: today)!) { return short ? "Tmrw" : "Tomorrow" }
     return short ? day.formatted(.dateTime.weekday(.abbreviated)) : day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
 }
+
+/// Day numbers for a month grid, padded with nil before the 1st so columns line up with `calendar.firstWeekday`.
+func monthCells(_ date: Date, calendar cal: Calendar = .current) -> [Int?] {
+    let start = cal.date(from: cal.dateComponents([.year, .month], from: date))!
+    let count = cal.range(of: .day, in: .month, for: start)!.count
+    let lead = (cal.component(.weekday, from: start) - cal.firstWeekday + 7) % 7
+    return Array(repeating: nil, count: lead) + (1...count).map { $0 }
+}
+
+/// Weekday initials starting at `calendar.firstWeekday`, e.g. "M T W T F S S".
+func weekdayInitials(calendar cal: Calendar = .current) -> [String] {
+    let s = cal.veryShortStandaloneWeekdaySymbols
+    return Array(s[(cal.firstWeekday - 1)...] + s[..<(cal.firstWeekday - 1)])
+}

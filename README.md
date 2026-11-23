@@ -15,6 +15,7 @@ A macOS desktop widget that shows your upcoming days from your Mac's calendars (
 
 Right-click the widget → **Edit "Notion Agenda"**. Each widget has its own settings:
 
+- **Style**: List, Calendar page (a tear-off desk calendar page), or Month (a month grid with today circled and dots on busy days). The calendar styles take their color from your Custom widget color, else the marker color, else red.
 - **Title**, **Show** (Calendar, Notion or both), **Hide lists**, **Days ahead**
 - **Group by** day, list, or nothing; **Show list name**
 - **Widget color** (System, or Custom: the color you pick in the app's color picker, opacity included), **Marker** (bar, dot, chip, none), **Marker color** (list colors, a single color, or monochrome), **Text size**

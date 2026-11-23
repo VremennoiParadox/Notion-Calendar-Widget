@@ -10,6 +10,7 @@ struct AgendaConfig: WidgetConfigurationIntent {
     static var description = IntentDescription("Choose what the widget shows and how it looks.")
 
     @Parameter(title: "Title") var heading: String?
+    @Parameter(title: "Style", default: .list) var style: StyleOption
     @Parameter(title: "Show", default: .everything) var show: ShowOption
     @Parameter(title: "Hide lists", default: []) var hidden: [ListEntity]
     @Parameter(title: "Days ahead", default: 7, inclusiveRange: (1, 30)) var days: Int
@@ -19,6 +20,13 @@ struct AgendaConfig: WidgetConfigurationIntent {
     @Parameter(title: "Marker", default: .bar) var marker: MarkerOption
     @Parameter(title: "Marker color", default: .calendar) var colors: ColorOption
     @Parameter(title: "Text size", default: .medium) var textSize: SizeOption
+}
+
+enum StyleOption: String, AppEnum {
+    case list, page, month
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Style"
+    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
+        .list: "List", .page: "Calendar page", .month: "Month"]
 }
 
 enum ShowOption: String, AppEnum {
@@ -184,6 +192,7 @@ struct AgendaView: View {
     let entry: Entry
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.widgetContentMargins) private var margins
+    @Environment(\.widgetRenderingMode) private var renderingMode
 
     private var c: AgendaConfig { entry.config }
     private var size: CGFloat { c.textSize.points }
@@ -192,6 +201,161 @@ struct AgendaView: View {
     private let palette: [Color] = [.blue, .purple, .pink, .orange, .green, .teal, .red, .yellow]
 
     var body: some View {
+        Group {
+            switch c.style {
+            case .list: itemList.padding(margins)
+            case .page: pageStyle
+            case .month: monthStyle.padding(margins)
+            }
+        }
+        // Drawn as content, not containerBackground: Clear style swaps the container background for glass.
+        .background { backgroundFill }
+        .environment(\.colorScheme, scheme)
+        .containerBackground(for: .widget) { Rectangle().fill(.background) }
+    }
+
+    /// List: the picked widget color. Calendar styles: white paper (glass in Clear/Tinted style, where text is forced white).
+    @ViewBuilder private var backgroundFill: some View {
+        if c.style == .list {
+            if let bg = customColor { swatch(bg) }
+        } else if renderingMode == .fullColor {
+            swatch(.white)
+        }
+    }
+
+    /// The calendar styles' color: the picked widget color, else the marker color, else calendar red.
+    private var theme: NSColor {
+        if c.widgetColor == .custom { return Store.widgetColor.withAlphaComponent(1) }
+        if let fixed = c.colors.fixed { return NSColor(fixed) }
+        return .systemRed
+    }
+
+    // MARK: Calendar page style
+
+    private var pageStyle: some View {
+        GeometryReader { geo in
+            let s = geo.size
+            if s.width <= s.height * 1.3 && s.height < 250 { // small widget
+                page(next: entry.items.first)
+            } else if s.width > s.height * 1.3 {
+                HStack(spacing: 0) {
+                    page(next: nil).frame(width: min(s.height, s.width * 0.4))
+                    Rectangle().fill(.quaternary).frame(width: 1)
+                    itemList.padding(margins)
+                }
+            } else {
+                VStack(spacing: 0) {
+                    page(next: nil).frame(height: s.height * 0.42)
+                    Rectangle().fill(.quaternary).frame(height: 1)
+                    itemList.padding(margins)
+                }
+            }
+        }
+    }
+
+    /// A tear-off calendar page: colored month band, big date, weekday, and optionally the next item.
+    private func page(next: Item?) -> some View {
+        GeometryReader { g in
+            let h = g.size.height
+            VStack(spacing: 0) {
+                ZStack {
+                    swatch(theme)
+                    Text(entry.date.formatted(.dateTime.month(.wide)).uppercased())
+                        .font(.system(size: h * 0.1, weight: .bold)).kerning(1).foregroundStyle(.white)
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                }
+                .frame(height: h * 0.24)
+                Spacer(minLength: 0)
+                Text(entry.date.formatted(.dateTime.day()))
+                    .font(.system(size: h * (next == nil ? 0.42 : 0.34), weight: .bold)).minimumScaleFactor(0.5)
+                Text(entry.date.formatted(.dateTime.weekday(.wide)))
+                    .font(.system(size: h * 0.1, weight: .semibold)).foregroundStyle(Color(nsColor: theme))
+                Spacer(minLength: 0)
+                if let next {
+                    let isToday = Calendar.current.isDate(max(next.start, today), inSameDayAs: today)
+                    Text("\(timeLabel(next, withDay: !isToday))  \(next.title)")
+                        .font(.system(size: h * 0.075)).foregroundStyle(.secondary).lineLimit(1)
+                        .padding(.horizontal, 10).padding(.bottom, h * 0.06)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: Month style
+
+    private var monthStyle: some View {
+        GeometryReader { geo in
+            let s = geo.size
+            if s.width <= s.height * 1.3 && s.height < 250 { // small widget
+                monthGrid
+            } else if s.width > s.height * 1.3 {
+                HStack(spacing: 12) {
+                    monthGrid.frame(width: min(s.height * 1.05, s.width * 0.45))
+                    itemList
+                }
+            } else {
+                VStack(spacing: 8) {
+                    monthGrid.frame(height: s.height * 0.5)
+                    itemList
+                }
+            }
+        }
+    }
+
+    private var monthGrid: some View {
+        let cells = monthCells(today)
+        let rows = (cells.count + 6) / 7
+        let todayNumber = Calendar.current.component(.day, from: today)
+        let busy = Set(entry.items.compactMap { item -> Int? in
+            let day = max(item.start, today)
+            return Calendar.current.isDate(day, equalTo: today, toGranularity: .month) ? Calendar.current.component(.day, from: day) : nil
+        })
+        return GeometryReader { g in
+            let cell = min(g.size.width / 7, g.size.height / (CGFloat(rows) + 1.8))
+            VStack(alignment: .leading, spacing: 0) {
+                Text(today.formatted(.dateTime.month(.wide).year()))
+                    .font(.system(size: cell * 0.5, weight: .bold)).foregroundStyle(Color(nsColor: theme))
+                    .frame(height: cell)
+                HStack(spacing: 0) {
+                    ForEach(Array(weekdayInitials().enumerated()), id: \.offset) { _, initial in
+                        Text(initial).font(.system(size: cell * 0.34, weight: .semibold)).foregroundStyle(.secondary)
+                            .frame(width: cell, height: cell * 0.8)
+                    }
+                }
+                ForEach(0..<rows, id: \.self) { r in
+                    HStack(spacing: 0) {
+                        ForEach(0..<7, id: \.self) { col in
+                            let i = r * 7 + col
+                            dayCell(i < cells.count ? cells[i] : nil, cell: cell, today: todayNumber, busy: busy)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    /// Today: filled circle in the theme color. Days with items: a small dot. Past days: dimmed.
+    private func dayCell(_ day: Int?, cell: CGFloat, today: Int, busy: Set<Int>) -> some View {
+        ZStack {
+            if let day {
+                if day == today {
+                    swatch(theme).frame(width: cell * 0.82, height: cell * 0.82).clipShape(Circle())
+                }
+                Text("\(day)").font(.system(size: cell * 0.4, weight: day == today ? .bold : .regular))
+                    .foregroundStyle(day == today ? Color.white : day < today ? Color.secondary : Color.primary)
+                if busy.contains(day) && day != today {
+                    swatch(theme).frame(width: cell * 0.13, height: cell * 0.13).clipShape(Circle()).offset(y: cell * 0.33)
+                }
+            }
+        }
+        .frame(width: cell, height: cell)
+    }
+
+    // MARK: List (also used beside the calendar styles)
+
+    private var itemList: some View {
         GeometryReader { geo in
             let reserved = (entry.note == nil ? 0 : 2) + (hasHeading ? 1 : 0)
             let budget = Int(geo.size.height / lineHeight) - reserved
@@ -218,19 +382,13 @@ struct AgendaView: View {
                 }
             }
         }
-        .padding(margins)
-        // Drawn as content, not containerBackground: Clear style swaps the container background for glass.
-        .background {
-            if let bg = customColor { swatch(bg) }
-        }
-        .environment(\.colorScheme, scheme)
-        .containerBackground(for: .widget) { Rectangle().fill(.background) }
     }
 
     private var customColor: NSColor? { c.widgetColor == .custom ? Store.widgetColor : nil }
 
-    /// Dark text on light colors, light text on dark ones (Clear style draws text white regardless).
+    /// Dark text on light colors and paper, light text on dark ones (Clear style draws text white regardless).
     private var scheme: ColorScheme {
+        if c.style != .list { return renderingMode == .fullColor ? .light : systemScheme }
         guard let bg = customColor, bg.alphaComponent > 0.5 else { return systemScheme }
         return 0.299 * bg.redComponent + 0.587 * bg.greenComponent + 0.114 * bg.blueComponent > 0.6 ? .light : .dark
     }
@@ -280,9 +438,9 @@ struct AgendaView: View {
         }
     }
 
-    private func timeLabel(_ item: Item) -> String {
+    private func timeLabel(_ item: Item, withDay: Bool? = nil) -> String {
         let time = item.allDay ? "all-day" : item.start.formatted(date: .omitted, time: .shortened)
-        guard c.groupBy != .day else { return time }
+        guard withDay ?? (c.groupBy != .day) else { return time }
         let day = dayLabel(item.start, today: today, short: true)
         return item.allDay ? day : "\(day) \(time)"
     }

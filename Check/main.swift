@@ -47,4 +47,17 @@ precondition(shape(agendaLines(items, budget: 3, key: { _ in nil })) == "a b c")
 precondition(dayLabel(today.addingTimeInterval(-86400), today: today) == "Today")    // multi-day item started yesterday
 precondition(dayLabel(today.addingTimeInterval(86400), today: today, short: true) == "Tmrw")
 
+// Month grid: Nov 2026 starts on a Sunday and has 30 days
+var gregorian = Calendar(identifier: .gregorian)
+gregorian.locale = Locale(identifier: "en_US")
+gregorian.timeZone = TimeZone(identifier: "UTC")!
+let nov = gregorian.date(from: DateComponents(year: 2026, month: 11, day: 23))!
+gregorian.firstWeekday = 1 // Sunday-first: no padding
+precondition(monthCells(nov, calendar: gregorian).first! == 1 && monthCells(nov, calendar: gregorian).count == 30)
+precondition(weekdayInitials(calendar: gregorian) == ["S", "M", "T", "W", "T", "F", "S"])
+gregorian.firstWeekday = 2 // Monday-first: Sunday the 1st sits in the 7th column
+let mondayFirst = monthCells(nov, calendar: gregorian)
+precondition(mondayFirst.prefix(6).allSatisfy { $0 == nil } && mondayFirst[6] == 1 && mondayFirst.last! == 30)
+precondition(weekdayInitials(calendar: gregorian) == ["M", "T", "W", "T", "F", "S", "S"])
+
 print("Notion + agenda checks passed")

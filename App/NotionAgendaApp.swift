@@ -56,7 +56,7 @@ struct SettingsView: View {
                         Store.widgetColor = NSColor(new)
                         WidgetCenter.shared.reloadAllTimelines()
                     }
-                Text("Right-click a widget → Edit “Notion Agenda” → Widget color → Custom. Lower the opacity for a tinted-glass look.")
+                Text("Right-click a widget → Edit “Notion Agenda” → Widget color → Custom. Lower the opacity for a tinted-glass look. In the Calendar page and Month styles, this color tints the calendar instead.")
                     .foregroundStyle(.secondary)
             }
             Section("Customize") {
