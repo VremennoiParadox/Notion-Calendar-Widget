@@ -2,6 +2,12 @@
 
 A macOS desktop widget that shows your upcoming days from your Mac's calendars (including the Google, iCloud or Outlook account behind Notion Calendar) together with dated items from your Notion databases.
 
+## Install
+
+Download the `.dmg` from [Releases](../../releases), open it, and drag **Notion Agenda** into Applications.
+
+The app isn't notarized by Apple, so the first launch is blocked: open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to "Notion Agenda". Then follow the setup below, skipping step 2.
+
 ## Setup
 
 1. Add your calendar account in **System Settings → Internet Accounts** with Calendars turned on.
@@ -28,5 +34,7 @@ Colors work in every **Appearance → Icon & widget style**. In Clear or Tinted 
 The widget refreshes about every 15 minutes. Clicking it opens the app, which refreshes it immediately.
 
 ## Building
+
+`./build.sh` builds, installs and opens the app. `./make-dmg.sh 1.2.0` builds a release disk image in `build/`.
 
 Requires Xcode and an Apple Development certificate. Set your own team in `NotionAgenda.xcodeproj` (`DEVELOPMENT_TEAM`); the App Group ID is derived from it. The secret is stored in that App Group on your Mac, never in the source.
