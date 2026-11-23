@@ -52,3 +52,26 @@ func weekdayInitials(calendar cal: Calendar = .current) -> [String] {
     let s = cal.veryShortStandaloneWeekdaySymbols
     return Array(s[(cal.firstWeekday - 1)...] + s[..<(cal.firstWeekday - 1)])
 }
+
+/// Short weekday names starting at `calendar.firstWeekday`, e.g. "Mon Tue …".
+func weekdayNames(calendar cal: Calendar = .current) -> [String] {
+    let s = cal.shortStandaloneWeekdaySymbols
+    return Array(s[(cal.firstWeekday - 1)...] + s[..<(cal.firstWeekday - 1)])
+}
+
+/// Side-by-side lanes for overlapping timed items (greedy). `spans` must be sorted by start.
+/// Returns each span's lane and how many lanes the day needs.
+func lanes(_ spans: [(start: Date, end: Date)]) -> (lane: [Int], count: Int) {
+    var laneEnds: [Date] = []
+    var lane: [Int] = []
+    for span in spans {
+        if let free = laneEnds.firstIndex(where: { $0 <= span.start }) {
+            laneEnds[free] = span.end
+            lane.append(free)
+        } else {
+            laneEnds.append(span.end)
+            lane.append(laneEnds.count - 1)
+        }
+    }
+    return (lane, max(1, laneEnds.count))
+}

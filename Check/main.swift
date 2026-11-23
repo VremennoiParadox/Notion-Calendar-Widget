@@ -60,4 +60,10 @@ let mondayFirst = monthCells(nov, calendar: gregorian)
 precondition(mondayFirst.prefix(6).allSatisfy { $0 == nil } && mondayFirst[6] == 1 && mondayFirst.last! == 30)
 precondition(weekdayInitials(calendar: gregorian) == ["M", "T", "W", "T", "F", "S", "S"])
 
+// Lanes: 9–10 and 9:30–10:30 overlap; 10–11 reuses the first lane
+let h = { (x: Double) in today.addingTimeInterval(x * 3600) }
+let laid = lanes([(h(9), h(10)), (h(9.5), h(10.5)), (h(10), h(11))])
+precondition(laid.lane == [0, 1, 0] && laid.count == 2)
+precondition(lanes([]).count == 1)
+
 print("Notion + agenda checks passed")

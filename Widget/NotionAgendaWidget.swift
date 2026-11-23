@@ -23,10 +23,14 @@ struct AgendaConfig: WidgetConfigurationIntent {
 }
 
 enum StyleOption: String, AppEnum {
-    case list, page, month
+    case list, page, month, apple, notion
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Style"
     static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .list: "List", .page: "Calendar page", .month: "Month"]
+        .list: "List", .page: "Calendar page", .month: "Month",
+        .apple: "Apple Calendar look", .notion: "Notion Calendar look"]
+
+    /// Styles drawn on white "paper" in full color.
+    var isPaper: Bool { self == .page || self == .month }
 }
 
 enum ShowOption: String, AppEnum {
@@ -190,15 +194,15 @@ struct Provider: AppIntentTimelineProvider {
 
 struct AgendaView: View {
     let entry: Entry
-    @Environment(\.colorScheme) private var systemScheme
-    @Environment(\.widgetContentMargins) private var margins
-    @Environment(\.widgetRenderingMode) private var renderingMode
+    @Environment(\.colorScheme) var systemScheme
+    @Environment(\.widgetContentMargins) var margins
+    @Environment(\.widgetRenderingMode) var renderingMode
 
-    private var c: AgendaConfig { entry.config }
-    private var size: CGFloat { c.textSize.points }
-    private var lineHeight: CGFloat { size * 1.6 }
-    private var today: Date { Calendar.current.startOfDay(for: entry.date) }
-    private let palette: [Color] = [.blue, .purple, .pink, .orange, .green, .teal, .red, .yellow]
+    var c: AgendaConfig { entry.config }
+    var size: CGFloat { c.textSize.points }
+    var lineHeight: CGFloat { size * 1.6 }
+    var today: Date { Calendar.current.startOfDay(for: entry.date) }
+    let palette: [Color] = [.blue, .purple, .pink, .orange, .green, .teal, .red, .yellow]
 
     var body: some View {
         Group {
@@ -206,6 +210,8 @@ struct AgendaView: View {
             case .list: itemList.padding(margins)
             case .page: pageStyle
             case .month: monthStyle.padding(margins)
+            case .apple: appleStyle.padding(margins)
+            case .notion: notionStyle.padding(margins)
             }
         }
         // Drawn as content, not containerBackground: Clear style swaps the container background for glass.
@@ -214,17 +220,18 @@ struct AgendaView: View {
         .containerBackground(for: .widget) { Rectangle().fill(.background) }
     }
 
-    /// List: the picked widget color. Calendar styles: white paper (glass in Clear/Tinted style, where text is forced white).
-    @ViewBuilder private var backgroundFill: some View {
+    /// List: the picked widget color. Page/Month: white paper (glass in Clear/Tinted style, where text is forced white).
+    /// Apple/Notion looks: the system background, like the apps.
+    @ViewBuilder var backgroundFill: some View {
         if c.style == .list {
             if let bg = customColor { swatch(bg) }
-        } else if renderingMode == .fullColor {
+        } else if c.style.isPaper && renderingMode == .fullColor {
             swatch(.white)
         }
     }
 
     /// The calendar styles' color: the picked widget color, else the marker color, else calendar red.
-    private var theme: NSColor {
+    var theme: NSColor {
         if c.widgetColor == .custom { return Store.widgetColor.withAlphaComponent(1) }
         if let fixed = c.colors.fixed { return NSColor(fixed) }
         return .systemRed
@@ -232,7 +239,7 @@ struct AgendaView: View {
 
     // MARK: Calendar page style
 
-    private var pageStyle: some View {
+    var pageStyle: some View {
         GeometryReader { geo in
             let s = geo.size
             if s.width <= s.height * 1.3 && s.height < 250 { // small widget
@@ -254,7 +261,7 @@ struct AgendaView: View {
     }
 
     /// A tear-off calendar page: colored month band, big date, weekday, and optionally the next item.
-    private func page(next: Item?) -> some View {
+    func page(next: Item?) -> some View {
         GeometryReader { g in
             let h = g.size.height
             VStack(spacing: 0) {
@@ -284,7 +291,7 @@ struct AgendaView: View {
 
     // MARK: Month style
 
-    private var monthStyle: some View {
+    var monthStyle: some View {
         GeometryReader { geo in
             let s = geo.size
             if s.width <= s.height * 1.3 && s.height < 250 { // small widget
@@ -303,7 +310,7 @@ struct AgendaView: View {
         }
     }
 
-    private var monthGrid: some View {
+    var monthGrid: some View {
         let cells = monthCells(today)
         let rows = (cells.count + 6) / 7
         let todayNumber = Calendar.current.component(.day, from: today)
@@ -337,7 +344,7 @@ struct AgendaView: View {
     }
 
     /// Today: filled circle in the theme color. Days with items: a small dot. Past days: dimmed.
-    private func dayCell(_ day: Int?, cell: CGFloat, today: Int, busy: Set<Int>) -> some View {
+    func dayCell(_ day: Int?, cell: CGFloat, today: Int, busy: Set<Int>) -> some View {
         ZStack {
             if let day {
                 if day == today {
@@ -355,7 +362,7 @@ struct AgendaView: View {
 
     // MARK: List (also used beside the calendar styles)
 
-    private var itemList: some View {
+    var itemList: some View {
         GeometryReader { geo in
             let reserved = (entry.note == nil ? 0 : 2) + (hasHeading ? 1 : 0)
             let budget = Int(geo.size.height / lineHeight) - reserved
@@ -384,18 +391,19 @@ struct AgendaView: View {
         }
     }
 
-    private var customColor: NSColor? { c.widgetColor == .custom ? Store.widgetColor : nil }
+    var customColor: NSColor? { c.widgetColor == .custom ? Store.widgetColor : nil }
 
     /// Dark text on light colors and paper, light text on dark ones (Clear style draws text white regardless).
-    private var scheme: ColorScheme {
-        if c.style != .list { return renderingMode == .fullColor ? .light : systemScheme }
+    var scheme: ColorScheme {
+        if c.style.isPaper { return renderingMode == .fullColor ? .light : systemScheme }
+        if c.style != .list { return systemScheme }
         guard let bg = customColor, bg.alphaComponent > 0.5 else { return systemScheme }
         return 0.299 * bg.redComponent + 0.587 * bg.greenComponent + 0.114 * bg.blueComponent > 0.6 ? .light : .dark
     }
 
-    private var hasHeading: Bool { !(c.heading ?? "").isEmpty }
+    var hasHeading: Bool { !(c.heading ?? "").isEmpty }
 
-    private func groupKey(_ item: Item) -> String? {
+    func groupKey(_ item: Item) -> String? {
         switch c.groupBy {
         case .day: dayLabel(item.start, today: today)
         case .list: item.source
@@ -403,7 +411,7 @@ struct AgendaView: View {
         }
     }
 
-    private func row(_ item: Item) -> some View {
+    func row(_ item: Item) -> some View {
         let color = color(for: item)
         return HStack(spacing: 6) {
             switch c.marker {
@@ -425,7 +433,7 @@ struct AgendaView: View {
 
     /// A solid-color picture. In Clear/Tinted icon & widget style macOS repaints shapes and text in one tint,
     /// but a picture marked full-color keeps its real color.
-    @ViewBuilder private func swatch(_ color: NSColor) -> some View {
+    @ViewBuilder func swatch(_ color: NSColor) -> some View {
         let ctx = CGContext(data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
                             space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         let _ = ctx.setFillColor(color.cgColor)
@@ -438,14 +446,14 @@ struct AgendaView: View {
         }
     }
 
-    private func timeLabel(_ item: Item, withDay: Bool? = nil) -> String {
+    func timeLabel(_ item: Item, withDay: Bool? = nil) -> String {
         let time = item.allDay ? "all-day" : item.start.formatted(date: .omitted, time: .shortened)
         guard withDay ?? (c.groupBy != .day) else { return time }
         let day = dayLabel(item.start, today: today, short: true)
         return item.allDay ? day : "\(day) \(time)"
     }
 
-    private func color(for item: Item) -> Color {
+    func color(for item: Item) -> Color {
         if let fixed = c.colors.fixed { return fixed }
         if let cg = item.calendarColor { return Color(cgColor: cg) }
         // Notion databases have no color, so give each one a stable color of its own.
