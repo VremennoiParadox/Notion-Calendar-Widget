@@ -16,9 +16,10 @@ struct AgendaConfig: WidgetConfigurationIntent {
     @Parameter(title: "Days ahead", default: 7, inclusiveRange: (1, 30)) var days: Int
     @Parameter(title: "Group by", default: .day) var groupBy: GroupOption
     @Parameter(title: "Show list name", default: false) var showSource: Bool
-    @Parameter(title: "Widget color", default: .system) var widgetColor: WidgetColorOption
+    @Parameter(title: "Background color", default: .system) var widgetColor: WidgetColorOption
+    @Parameter(title: "Element color", default: .standard) var elementColor: ElementColorOption
     @Parameter(title: "Marker", default: .bar) var marker: MarkerOption
-    @Parameter(title: "Marker color", default: .calendar) var colors: ColorOption
+    @Parameter(title: "Item colors", default: .calendar) var colors: ColorOption
     @Parameter(title: "Text size", default: .medium) var textSize: SizeOption
 }
 
@@ -48,15 +49,15 @@ enum GroupOption: String, AppEnum {
 }
 
 enum ColorOption: String, AppEnum {
-    case calendar, blue, purple, pink, red, orange, yellow, green, teal, mono
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Marker color"
+    case calendar, element, blue, purple, pink, red, orange, yellow, green, teal, mono
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Item colors"
     static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .calendar: "List colors", .blue: "Blue", .purple: "Purple", .pink: "Pink", .red: "Red",
+        .calendar: "List colors", .element: "Element color", .blue: "Blue", .purple: "Purple", .pink: "Pink", .red: "Red",
         .orange: "Orange", .yellow: "Yellow", .green: "Green", .teal: "Teal", .mono: "Monochrome"]
 
     var fixed: Color? {
         switch self {
-        case .calendar: nil
+        case .calendar, .element: nil
         case .blue: .blue
         case .purple: .purple
         case .pink: .pink
@@ -73,9 +74,17 @@ enum ColorOption: String, AppEnum {
 // Widget settings can't hold a color picker, so the color itself is picked in the app (Store.widgetColor).
 enum WidgetColorOption: String, AppEnum {
     case system, custom
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Widget color"
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Background color"
     static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
         .system: "System", .custom: "Custom (pick it in the app)"]
+}
+
+/// Today's highlight, headers, the page band and the time line. The custom color is picked in the app (Store.elementColor).
+enum ElementColorOption: String, AppEnum {
+    case standard, custom
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Element color"
+    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
+        .standard: "Red", .custom: "Custom (pick it in the app)"]
 }
 
 enum MarkerOption: String, AppEnum {
@@ -220,21 +229,19 @@ struct AgendaView: View {
         .containerBackground(for: .widget) { Rectangle().fill(.background) }
     }
 
-    /// List: the picked widget color. Page/Month: white paper (glass in Clear/Tinted style, where text is forced white).
-    /// Apple/Notion looks: the system background, like the apps.
+    /// The picked background color in every style. Otherwise Page/Month get white paper (glass in Clear/Tinted
+    /// style, where text is forced white) and the rest the system background, like the apps.
     @ViewBuilder var backgroundFill: some View {
-        if c.style == .list {
-            if let bg = customColor { swatch(bg) }
+        if let bg = customColor {
+            swatch(bg)
         } else if c.style.isPaper && renderingMode == .fullColor {
             swatch(.white)
         }
     }
 
-    /// The calendar styles' color: the picked widget color, else the marker color, else calendar red.
+    /// The element color: today's highlight, headers, the page band, the time line.
     var theme: NSColor {
-        if c.widgetColor == .custom { return Store.widgetColor.withAlphaComponent(1) }
-        if let fixed = c.colors.fixed { return NSColor(fixed) }
-        return .systemRed
+        c.elementColor == .custom ? Store.elementColor.withAlphaComponent(1) : .systemRed
     }
 
     // MARK: Calendar page style
@@ -369,7 +376,7 @@ struct AgendaView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if hasHeading {
                     Text(c.heading ?? "").font(.system(size: size + 2, weight: .bold))
-                        .foregroundStyle(c.colors.fixed ?? .primary).frame(height: lineHeight)
+                        .foregroundStyle(c.elementColor == .custom ? Color(nsColor: theme) : .primary).frame(height: lineHeight)
                 }
                 if entry.items.isEmpty && entry.note == nil {
                     Text("Nothing in the next \(c.days) days").font(.system(size: size)).foregroundStyle(.secondary)
@@ -393,12 +400,12 @@ struct AgendaView: View {
 
     var customColor: NSColor? { c.widgetColor == .custom ? Store.widgetColor : nil }
 
-    /// Dark text on light colors and paper, light text on dark ones (Clear style draws text white regardless).
+    /// Dark text on light backgrounds and paper, light text on dark ones (Clear style draws text white regardless).
     var scheme: ColorScheme {
-        if c.style.isPaper { return renderingMode == .fullColor ? .light : systemScheme }
-        if c.style != .list { return systemScheme }
-        guard let bg = customColor, bg.alphaComponent > 0.5 else { return systemScheme }
-        return 0.299 * bg.redComponent + 0.587 * bg.greenComponent + 0.114 * bg.blueComponent > 0.6 ? .light : .dark
+        if let bg = customColor, bg.alphaComponent > 0.5 {
+            return 0.299 * bg.redComponent + 0.587 * bg.greenComponent + 0.114 * bg.blueComponent > 0.6 ? .light : .dark
+        }
+        return c.style.isPaper && renderingMode == .fullColor ? .light : systemScheme
     }
 
     var hasHeading: Bool { !(c.heading ?? "").isEmpty }
@@ -454,6 +461,7 @@ struct AgendaView: View {
     }
 
     func color(for item: Item) -> Color {
+        if c.colors == .element { return Color(nsColor: theme) }
         if let fixed = c.colors.fixed { return fixed }
         if let cg = item.calendarColor { return Color(cgColor: cg) }
         // Notion databases have no color, so give each one a stable color of its own.

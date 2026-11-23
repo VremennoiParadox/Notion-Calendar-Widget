@@ -9,16 +9,25 @@ enum Store {
         set { defaults.set(newValue, forKey: "notionToken") }
     }
 
-    /// Picked in the app; used by widgets whose Widget color is "Custom".
+    /// Picked in the app; fills widgets whose Background color is "Custom".
     static var widgetColor: NSColor {
-        get {
-            let v = defaults.array(forKey: "widgetColor") as? [Double] ?? []
-            return v.count == 4 ? NSColor(srgbRed: v[0], green: v[1], blue: v[2], alpha: v[3])
-                                : NSColor(srgbRed: 0.17, green: 0.2, blue: 0.27, alpha: 1)
-        }
-        set {
-            let c = newValue.usingColorSpace(.sRGB) ?? .black
-            defaults.set([c.redComponent, c.greenComponent, c.blueComponent, c.alphaComponent].map(Double.init), forKey: "widgetColor")
-        }
+        get { color("widgetColor") ?? NSColor(srgbRed: 0.17, green: 0.2, blue: 0.27, alpha: 1) }
+        set { setColor(newValue, "widgetColor") }
+    }
+
+    /// Picked in the app; today's highlight, headers and time line in widgets whose Element color is "Custom".
+    static var elementColor: NSColor {
+        get { color("elementColor") ?? .systemRed }
+        set { setColor(newValue, "elementColor") }
+    }
+
+    private static func color(_ key: String) -> NSColor? {
+        let v = defaults.array(forKey: key) as? [Double] ?? []
+        return v.count == 4 ? NSColor(srgbRed: v[0], green: v[1], blue: v[2], alpha: v[3]) : nil
+    }
+
+    private static func setColor(_ color: NSColor, _ key: String) {
+        let c = color.usingColorSpace(.sRGB) ?? .black
+        defaults.set([c.redComponent, c.greenComponent, c.blueComponent, c.alphaComponent].map(Double.init), forKey: key)
     }
 }

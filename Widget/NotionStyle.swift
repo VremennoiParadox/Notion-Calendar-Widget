@@ -103,7 +103,7 @@ extension AgendaView {
 
     /// Event text in a deeper (light mode) or lighter (dark mode) shade of the event color, like Notion Calendar.
     private func ink(_ color: NSColor) -> Color {
-        Color(nsColor: color.blended(withFraction: 0.35, of: systemScheme == .dark ? .white : .black) ?? color)
+        Color(nsColor: color.blended(withFraction: 0.35, of: scheme == .dark ? .white : .black) ?? color)
     }
 
     private func notionHeader(_ day: Date) -> some View {

@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State private var notionStatus = ""
     @State private var calendarAllowed: Bool?
     @State private var widgetColor = Color(nsColor: Store.widgetColor)
+    @State private var elementColor = Color(nsColor: Store.elementColor)
 
     var body: some View {
         Form {
@@ -50,13 +51,18 @@ struct SettingsView: View {
                 case nil: Text("Checking…")
                 }
             }
-            Section("Widget color") {
-                ColorPicker("Color for widgets set to “Custom”", selection: $widgetColor, supportsOpacity: true)
+            Section("Colors") {
+                ColorPicker("Background", selection: $widgetColor, supportsOpacity: true)
                     .onChange(of: widgetColor) { _, new in
                         Store.widgetColor = NSColor(new)
                         WidgetCenter.shared.reloadAllTimelines()
                     }
-                Text("Right-click a widget → Edit “Notion Agenda” → Widget color → Custom. Lower the opacity for a tinted-glass look. In the Calendar page and Month styles, this color tints the calendar instead.")
+                ColorPicker("Elements", selection: $elementColor, supportsOpacity: false)
+                    .onChange(of: elementColor) { _, new in
+                        Store.elementColor = NSColor(new)
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
+                Text("Used by widgets whose Background color or Element color is set to Custom (right-click a widget → Edit “Notion Agenda”). Elements are today’s highlight, headers, the page band and the time line; set Item colors to “Element color” to match items too. Lower the background opacity for a tinted-glass look.")
                     .foregroundStyle(.secondary)
             }
             Section("Customize") {
